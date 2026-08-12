@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from cpr_scanner import ScannerConfig, evaluate_stock, run_scanner
+from config import ScannerConfig
+from evaluate import evaluate_stock
+from scanner import run_scanner
 from tests.conftest import make_compressed_then_breakout, make_ohlcv
 
 

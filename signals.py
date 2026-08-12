@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from cpr_scanner.config import ScannerConfig
-from cpr_scanner.cpr import is_narrow_classification
+from config import ScannerConfig
+from cpr import is_narrow_classification
 
 
 Direction = Literal["BUY", "SELL"]

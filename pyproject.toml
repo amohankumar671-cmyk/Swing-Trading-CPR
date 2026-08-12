@@ -16,8 +16,17 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0.0"]
 
-[tool.setuptools.packages.find]
-include = ["cpr_scanner*"]
+[tool.setuptools]
+py-modules = [
+  "config",
+  "cpr",
+  "indicators",
+  "signals",
+  "entry_status",
+  "risk",
+  "evaluate",
+  "scanner",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

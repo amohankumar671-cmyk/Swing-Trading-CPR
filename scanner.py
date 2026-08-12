@@ -6,9 +6,9 @@ from typing import Any, Callable, Iterable, Literal
 
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
-from cpr_scanner.cpr import add_cpr, classify_cpr_width, is_narrow_classification, resample_daily_to_weekly
-from cpr_scanner.evaluate import evaluate_stock
+from config import ScannerConfig
+from cpr import add_cpr, classify_cpr_width, is_narrow_classification, resample_daily_to_weekly
+from evaluate import evaluate_stock
 
 Direction = Literal["BUY", "SELL"]
 

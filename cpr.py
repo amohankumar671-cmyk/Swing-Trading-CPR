@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
+from config import ScannerConfig
 
 
 REQUIRED_OHLC = ("open", "high", "low", "close")

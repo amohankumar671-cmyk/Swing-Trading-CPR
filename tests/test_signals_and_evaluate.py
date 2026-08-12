@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
-from cpr_scanner.entry_status import resolve_entry_status_full
-from cpr_scanner.evaluate import evaluate_stock
-from cpr_scanner.indicators import adx, relative_strength, rsi, volume_ratio
-from cpr_scanner.scanner import market_regime, run_scanner
-from cpr_scanner.signals import classify_score, composite_score, evaluate_binary_signal
+from config import ScannerConfig
+from entry_status import resolve_entry_status_full
+from evaluate import evaluate_stock
+from indicators import adx, relative_strength, rsi, volume_ratio
+from scanner import market_regime, run_scanner
+from signals import classify_score, composite_score, evaluate_binary_signal
 from tests.conftest import make_compressed_then_breakout, make_ohlcv
 
 

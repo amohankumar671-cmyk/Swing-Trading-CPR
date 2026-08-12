@@ -7,21 +7,21 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
-from cpr_scanner.cpr import (
+from config import ScannerConfig
+from cpr import (
     add_cpr,
     classify_cpr_width,
     daily_cpr_bias,
     resample_daily_to_weekly,
 )
-from cpr_scanner.entry_status import resolve_entry_status_full
-from cpr_scanner.indicators import (
+from entry_status import resolve_entry_status_full
+from indicators import (
     add_daily_emas,
     add_weekly_indicators,
     relative_strength,
 )
-from cpr_scanner.risk import build_risk_plan
-from cpr_scanner.signals import (
+from risk import build_risk_plan
+from signals import (
     composite_score,
     evaluate_binary_signal,
     resolve_signal_direction,

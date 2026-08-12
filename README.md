@@ -2,6 +2,8 @@
 
 Python module that scores NSE F&O swing setups from **weekly CPR compression + breakout**, with daily CPR used only for entry timing.
 
+All scanner modules live in the repo root.
+
 ## Install
 
 ```bash
@@ -12,7 +14,9 @@ pip install -e .
 ## Quick start
 
 ```python
-from cpr_scanner import evaluate_stock, run_scanner, market_regime, ScannerConfig
+from config import ScannerConfig
+from evaluate import evaluate_stock
+from scanner import run_scanner, market_regime
 
 # daily_df / weekly_df: DataFrames with columns open, high, low, close, volume
 # (DatetimeIndex preferred; weekly can be omitted and will be resampled)
@@ -43,8 +47,21 @@ print(report["results"][0])
 Synthetic demo:
 
 ```bash
-python examples/run_synthetic_scan.py
+python run_synthetic_scan.py
 ```
+
+## Layout
+
+| File | Role |
+|------|------|
+| `cpr.py` | CPR calc, narrow percentile classification, weekly resample |
+| `indicators.py` | EMA, RSI, ADX, volume ratio, relative strength |
+| `signals.py` | BUY/SELL conditions + composite score |
+| `entry_status.py` | Weekly vs daily conflict resolution |
+| `risk.py` | Stop / target / trail / invalidation |
+| `evaluate.py` | `evaluate_stock()` output schema |
+| `scanner.py` | Market regime + universe loop |
+| `config.py` | Tunable thresholds |
 
 ## Logic summary
 

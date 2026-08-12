@@ -7,7 +7,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
+from config import ScannerConfig
 
 Direction = Literal["BUY", "SELL"]
 

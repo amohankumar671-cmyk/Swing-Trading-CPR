@@ -6,8 +6,8 @@ from typing import Literal
 
 import pandas as pd
 
-from cpr_scanner.config import ScannerConfig
-from cpr_scanner.cpr import add_cpr, daily_cpr_bias
+from config import ScannerConfig
+from cpr import add_cpr, daily_cpr_bias
 
 EntryStatus = Literal[
     "confirmed",
