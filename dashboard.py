@@ -72,8 +72,8 @@ def main() -> None:
         st.header("Automation")
         auto_refresh = st.toggle("Auto-refresh", value=True)
         refresh_mins = st.slider("Refresh every (minutes)", 1, 60, 15)
-        run_now = st.button("Run scan now", type="primary", use_container_width=True)
-        clear_cache = st.button("Clear data cache", use_container_width=True)
+        run_now = st.button("Run scan now", type="primary", width="stretch")
+        clear_cache = st.button("Clear data cache", width="stretch")
 
         if clear_cache:
             _cached_scan.clear()
@@ -128,7 +128,7 @@ def main() -> None:
 
     with tabs[0]:
         watch = df[df["classification"].isin(["watchlist", "high_conviction"])]
-        st.dataframe(watch, use_container_width=True, hide_index=True)
+        st.dataframe(watch, width="stretch", hide_index=True)
         st.download_button(
             "Download watchlist CSV",
             watch.to_csv(index=False).encode("utf-8"),
@@ -139,10 +139,10 @@ def main() -> None:
 
     with tabs[1]:
         high = df[df["classification"] == "high_conviction"]
-        st.dataframe(high, use_container_width=True, hide_index=True)
+        st.dataframe(high, width="stretch", hide_index=True)
 
     with tabs[2]:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
         st.download_button(
             "Download full CSV",
             df.to_csv(index=False).encode("utf-8"),
@@ -154,7 +154,7 @@ def main() -> None:
     with tabs[3]:
         errors = report.get("errors") or []
         if errors:
-            st.dataframe(pd.DataFrame(errors), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(errors), width="stretch", hide_index=True)
         else:
             st.write("No download/scan errors.")
 
