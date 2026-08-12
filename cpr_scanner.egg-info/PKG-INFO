@@ -1,3 +1,14 @@
+Metadata-Version: 2.4
+Name: cpr-scanner
+Version: 0.1.0
+Summary: CPR Multi-Timeframe Swing Scanner for NSE F&O stocks
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: numpy>=1.24.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+
 # CPR Multi-Timeframe Swing Scanner
 
 Python module that scores NSE F&O swing setups from **weekly CPR compression + breakout**, with daily CPR used only for entry timing.
