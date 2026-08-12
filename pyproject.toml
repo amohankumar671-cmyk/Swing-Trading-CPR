@@ -12,6 +12,8 @@ dependencies = [
   "pandas>=2.0.0",
   "numpy>=1.24.0",
   "yfinance>=0.2.40",
+  "streamlit>=1.32.0",
+  "streamlit-autorefresh>=1.0.1",
 ]
 
 [project.optional-dependencies]

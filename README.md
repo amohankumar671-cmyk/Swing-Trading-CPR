@@ -14,6 +14,23 @@ Dependencies: **pandas**, **numpy**, **yfinance** (free Yahoo Finance data). Opt
 
 Use **Python 3.12** (recommended on Windows). Avoid Python 3.14 for now.
 
+## Free dashboard (auto Yahoo scan)
+
+One-click on Windows:
+
+```bat
+start_dashboard.bat
+```
+
+Or manually:
+
+```bash
+pip install -r requirements.txt
+streamlit run dashboard.py
+```
+
+Opens at http://localhost:8501 — fetches Yahoo OHLCV, runs the scanner, and auto-refreshes on a timer you set in the sidebar.
+
 ## Free data (Yahoo Finance — no broker / no payment)
 
 OHLCV is loaded with `yfinance`. NSE stocks use `.NS` (handled for you). Nifty is `^NSEI`.
@@ -65,6 +82,8 @@ Yahoo is free and fine for building/testing. It is **not** an official exchange 
 
 | File | Role |
 |------|------|
+| `dashboard.py` | Auto-refresh Streamlit dashboard |
+| `start_dashboard.bat` | Windows one-click launcher |
 | `data.py` | Free Yahoo Finance OHLCV loader (`yfinance`) |
 | `cpr.py` | CPR calc, narrow percentile classification, weekly resample |
 | `indicators.py` | EMA, RSI, ADX, volume ratio, relative strength |
