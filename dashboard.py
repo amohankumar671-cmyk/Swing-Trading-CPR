@@ -17,8 +17,9 @@ import pandas as pd
 import streamlit as st
 
 from dashboard_utils import parse_symbols, results_frame
-from data import DEFAULT_FNO_SYMBOLS, load_universe
+from data import load_universe
 from scanner import run_scanner
+from universe import PRESET_LABELS, list_presets, load_preset, refresh_all_universes
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -33,15 +34,16 @@ st.set_page_config(
 )
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def _cached_scan(symbols: tuple[str, ...], period: str) -> dict[str, Any]:
-    universe, index_df = load_universe(list(symbols), period=period)
+    universe, index_df, warnings = load_universe(list(symbols), period=period)
     if not universe:
         return {
             "scanner_mode": "n/a",
             "index_cpr_narrow": False,
             "results": [],
-            "errors": [{"symbol": "*", "error": "No symbols downloaded"}],
+            "errors": [{"symbol": "*", "error": w} for w in warnings]
+            or [{"symbol": "*", "error": "No symbols downloaded"}],
             "scanned": 0,
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
             "symbol_count": 0,
@@ -49,6 +51,9 @@ def _cached_scan(symbols: tuple[str, ...], period: str) -> dict[str, Any]:
     report = run_scanner(universe, index_daily_df=index_df, min_score=0.0)
     report["fetched_at"] = datetime.now().isoformat(timespec="seconds")
     report["symbol_count"] = len(universe)
+    # Merge download warnings into errors tab
+    existing = report.get("errors") or []
+    report["errors"] = existing + [{"symbol": "*", "error": w} for w in warnings]
     return report
 
 
@@ -56,21 +61,56 @@ def main() -> None:
     st.title("CPR Multi-Timeframe Swing Scanner")
     st.caption("Auto Yahoo Finance data · weekly CPR bias · daily CPR entry timing")
 
+    presets = list_presets()
+    preset_options = {label: key for key, label, _ in presets}
+
     with st.sidebar:
-        st.header("Scan settings")
-        default_text = ", ".join(DEFAULT_FNO_SYMBOLS)
-        symbols_text = st.text_area(
-            "NSE symbols (comma or newline)",
-            value=default_text,
-            height=140,
-            help="Plain NSE tickers — .NS is added automatically",
+        st.header("Universe")
+        preset_keys = [key for key, _, _ in presets]
+        default_idx = preset_keys.index("nse_fno") if "nse_fno" in preset_keys else 0
+        preset_label = st.selectbox(
+            "Scan universe",
+            options=list(preset_options.keys()),
+            index=default_idx,
+            help="NSE F&O is recommended. Nifty 500 is slower on free Yahoo Finance.",
         )
+        preset_key = preset_options[preset_label]
+        preset_symbols = load_preset(preset_key)
+        st.caption(f"{len(preset_symbols)} symbols in preset")
+
+        custom_mode = st.toggle("Custom symbol list", value=False)
+        if custom_mode:
+            symbols_text = st.text_area(
+                "NSE symbols (comma or newline)",
+                value=", ".join(preset_symbols[:10]),
+                height=140,
+                help="Plain NSE tickers — .NS is added automatically",
+            )
+            symbols = parse_symbols(symbols_text)
+        else:
+            symbols = preset_symbols
+            st.text_area(
+                "Preset symbols (read-only preview)",
+                value=", ".join(symbols[:40]) + (" ..." if len(symbols) > 40 else ""),
+                height=100,
+                disabled=True,
+            )
+
+        if st.button("Refresh lists from NSE", width="stretch"):
+            try:
+                counts = refresh_all_universes()
+                st.success(f"Updated: {counts}")
+                st.cache_data.clear()
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Refresh failed (using bundled lists): {exc}")
+
+        st.header("Scan settings")
         period = st.selectbox("History period", ["1y", "2y", "5y", "max"], index=1)
         min_score = st.slider("Minimum score", 0, 100, 50, 5)
         direction = st.selectbox("Direction filter", ["ALL", "BUY", "SELL", "NONE"], index=0)
 
         st.header("Automation")
-        auto_refresh = st.toggle("Auto-refresh", value=True)
+        auto_refresh = st.toggle("Auto-refresh", value=False)
         refresh_mins = st.slider("Refresh every (minutes)", 1, 60, 15)
         run_now = st.button("Run scan now", type="primary", width="stretch")
         clear_cache = st.button("Clear data cache", width="stretch")
@@ -79,7 +119,12 @@ def main() -> None:
             _cached_scan.clear()
             st.success("Cache cleared")
 
-    symbols = parse_symbols(symbols_text)
+        if len(symbols) >= 100:
+            st.info(
+                f"Large universe ({len(symbols)}). First run may take several minutes "
+                "on free Yahoo Finance."
+            )
+
     if not symbols:
         st.warning("Add at least one NSE symbol in the sidebar.")
         return
@@ -92,15 +137,14 @@ def main() -> None:
                 f"<meta http-equiv='refresh' content='{refresh_mins * 60}'>",
                 unsafe_allow_html=True,
             )
-            st.info(
-                f"Auto-refresh every {refresh_mins} min "
-                "(install streamlit-autorefresh for smoother updates)."
-            )
 
     if run_now:
         _cached_scan.clear()
 
-    with st.spinner(f"Fetching {len(symbols)} symbols + Nifty and scanning…"):
+    with st.spinner(
+        f"Fetching {len(symbols)} symbols ({PRESET_LABELS.get(preset_key, preset_key)}) "
+        f"+ Nifty and scanning…"
+    ):
         report = _cached_scan(tuple(symbols), period)
 
     mode = report.get("scanner_mode", "n/a")
@@ -161,10 +205,11 @@ def main() -> None:
     with st.expander("How automation works"):
         st.markdown(
             """
-            1. Dashboard pulls daily OHLCV from **Yahoo Finance** (free).
-            2. Runs `evaluate_stock` / `run_scanner` on your symbol list.
-            3. Caches results for 5 minutes to avoid hammering Yahoo.
-            4. With **Auto-refresh** on, the page reloads on your chosen interval and rescans.
+            1. Choose a universe: **Sample**, **Nifty 50**, **NSE F&O (full)**, or **Nifty 500**.
+            2. Dashboard pulls daily OHLCV from **Yahoo Finance** in batches (free).
+            3. Runs the CPR scanner and ranks results.
+            4. Cache lasts ~10 minutes. Use **Run scan now** to force a refresh.
+            5. **NSE F&O** is the intended universe for this strategy (SELL needs F&O).
             """
         )
 

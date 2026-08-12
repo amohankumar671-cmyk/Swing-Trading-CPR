@@ -20,22 +20,12 @@ except ImportError as exc:  # pragma: no cover
         "yfinance is required for Yahoo Finance data. Install with: pip install yfinance"
     ) from exc
 
+from universe import SAMPLE_SYMBOLS, fno_symbol_set
 
 NIFTY50 = "^NSEI"
 
-# Small free starter universe (NSE F&O names). Expand as needed.
-DEFAULT_FNO_SYMBOLS: list[str] = [
-    "RELIANCE",
-    "TCS",
-    "INFY",
-    "HDFCBANK",
-    "ICICIBANK",
-    "SBIN",
-    "ITC",
-    "BHARTIARTL",
-    "LT",
-    "KOTAKBANK",
-]
+# Back-compat alias used by older scripts/docs
+DEFAULT_FNO_SYMBOLS: list[str] = list(SAMPLE_SYMBOLS)
 
 
 def to_yahoo_symbol(symbol: str, exchange: str = "NS") -> str:
@@ -46,6 +36,21 @@ def to_yahoo_symbol(symbol: str, exchange: str = "NS") -> str:
     return f"{s}.{exchange}"
 
 
+def _normalize_single_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    out.columns = [str(c).strip().lower() for c in out.columns]
+    out = out.rename(columns={"adj close": "close", "adj_close": "close"})
+    needed = ["open", "high", "low", "close", "volume"]
+    missing = [c for c in needed if c not in out.columns]
+    if missing:
+        raise ValueError(f"Yahoo data missing columns {missing}")
+    out = out[needed].dropna(subset=["open", "high", "low", "close"])
+    out.index = pd.to_datetime(out.index)
+    if getattr(out.index, "tz", None) is not None:
+        out.index = out.index.tz_localize(None)
+    return out.sort_index()
+
+
 def _flatten_ohlcv(df: pd.DataFrame, yahoo_symbol: str) -> pd.DataFrame:
     """Normalize yfinance single/multi-ticker download to open/high/low/close/volume."""
     if df is None or df.empty:
@@ -53,7 +58,6 @@ def _flatten_ohlcv(df: pd.DataFrame, yahoo_symbol: str) -> pd.DataFrame:
 
     out = df.copy()
     if isinstance(out.columns, pd.MultiIndex):
-        # Prefer columns for this ticker when present
         level0 = out.columns.get_level_values(0)
         level1 = out.columns.get_level_values(1)
         if yahoo_symbol in set(level1):
@@ -61,30 +65,12 @@ def _flatten_ohlcv(df: pd.DataFrame, yahoo_symbol: str) -> pd.DataFrame:
         elif len(set(level1)) == 1:
             out = out.droplevel(1, axis=1)
         else:
-            # yfinance sometimes orders as (Price, Ticker)
             try:
                 out = out.xs(yahoo_symbol, axis=1, level=-1)
             except KeyError:
                 out.columns = level0
 
-    out.columns = [str(c).strip().lower() for c in out.columns]
-    rename = {
-        "adj close": "close",
-        "adj_close": "close",
-    }
-    out = out.rename(columns=rename)
-
-    needed = ["open", "high", "low", "close", "volume"]
-    missing = [c for c in needed if c not in out.columns]
-    if missing:
-        raise ValueError(f"Yahoo data missing columns {missing} for {yahoo_symbol}")
-
-    out = out[needed].dropna(subset=["open", "high", "low", "close"])
-    out.index = pd.to_datetime(out.index)
-    if getattr(out.index, "tz", None) is not None:
-        out.index = out.index.tz_localize(None)
-    out = out.sort_index()
-    return out
+    return _normalize_single_ohlcv(out)
 
 
 def fetch_ohlcv(
@@ -94,15 +80,7 @@ def fetch_ohlcv(
     interval: str = "1d",
     exchange: str = "NS",
 ) -> pd.DataFrame:
-    """
-    Download daily (or other) OHLCV from Yahoo Finance.
-
-    Parameters
-    ----------
-    symbol : plain ticker ("RELIANCE") or Yahoo form ("RELIANCE.NS", "^NSEI")
-    period : e.g. "1y", "2y", "5y", "max"
-    interval : e.g. "1d" (daily). Weekly bars are resampled inside the scanner.
-    """
+    """Download daily (or other) OHLCV from Yahoo Finance for one symbol."""
     yahoo = to_yahoo_symbol(symbol, exchange=exchange)
     raw = yf.download(
         yahoo,
@@ -113,6 +91,90 @@ def fetch_ohlcv(
         threads=False,
     )
     return _flatten_ohlcv(raw, yahoo)
+
+
+def fetch_many_ohlcv(
+    symbols: Iterable[str],
+    *,
+    period: str = "2y",
+    interval: str = "1d",
+    batch_size: int = 40,
+) -> tuple[dict[str, pd.DataFrame], list[str]]:
+    """
+    Batch-download OHLCV for many NSE symbols (faster than one-by-one).
+
+    Returns (symbol -> daily_df, error_messages).
+    """
+    plain = []
+    seen: set[str] = set()
+    for s in symbols:
+        p = to_yahoo_symbol(s).replace(".NS", "").replace("^", "")
+        # Keep index symbols out of equity batch
+        if s.strip().startswith("^"):
+            continue
+        if p and p not in seen:
+            seen.add(p)
+            plain.append(p)
+
+    frames: dict[str, pd.DataFrame] = {}
+    errors: list[str] = []
+
+    for i in range(0, len(plain), batch_size):
+        chunk = plain[i : i + batch_size]
+        yahoos = [to_yahoo_symbol(s) for s in chunk]
+        try:
+            raw = yf.download(
+                yahoos,
+                period=period,
+                interval=interval,
+                auto_adjust=True,
+                progress=False,
+                threads=True,
+                group_by="ticker",
+            )
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"batch {chunk[0]}..{chunk[-1]}: {exc}")
+            # Fallback to singles for this chunk
+            for s in chunk:
+                try:
+                    frames[s] = fetch_ohlcv(s, period=period, interval=interval)
+                except Exception as e2:  # noqa: BLE001
+                    errors.append(f"{s}: {e2}")
+            continue
+
+        if raw is None or raw.empty:
+            for s in chunk:
+                errors.append(f"{s}: empty download")
+            continue
+
+        # Single ticker still returns flat columns
+        if len(chunk) == 1:
+            s = chunk[0]
+            try:
+                frames[s] = _flatten_ohlcv(raw, to_yahoo_symbol(s))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{s}: {exc}")
+            continue
+
+        # Multi-ticker: columns are (ticker, price) or sometimes (price, ticker)
+        if isinstance(raw.columns, pd.MultiIndex):
+            level0 = set(map(str, raw.columns.get_level_values(0)))
+            for s, yahoo in zip(chunk, yahoos):
+                try:
+                    if yahoo in level0:
+                        sub = raw[yahoo]
+                    elif s in level0:
+                        sub = raw[s]
+                    else:
+                        # try level 1
+                        sub = raw.xs(yahoo, axis=1, level=-1, drop_level=True)
+                    frames[s] = _normalize_single_ohlcv(sub)
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{s}: {exc}")
+        else:
+            errors.append("unexpected Yahoo multi-ticker layout")
+
+    return frames, errors
 
 
 def fetch_index_ohlcv(
@@ -130,33 +192,45 @@ def load_universe(
     *,
     period: str = "2y",
     index_symbol: str = NIFTY50,
-) -> tuple[list[dict], pd.DataFrame]:
+    min_bars: int = 100,
+    fno_only_sell: bool | None = None,
+) -> tuple[list[dict], pd.DataFrame, list[str]]:
     """
     Fetch stock + index frames ready for run_scanner().
 
-    Returns (universe_items, index_daily_df).
-    Skips symbols that fail to download.
+    Returns (universe_items, index_daily_df, warnings).
+    `stock_is_fno_eligible` is True only for symbols in the bundled F&O list
+    (unless fno_only_sell is overridden).
     """
     index_df = fetch_index_ohlcv(index_symbol, period=period)
+    frames, errors = fetch_many_ohlcv(symbols, period=period)
+    fno = fno_symbol_set()
     items: list[dict] = []
-    errors: list[str] = []
-    for sym in symbols:
-        try:
-            daily = fetch_ohlcv(sym, period=period)
-            if daily.empty or len(daily) < 100:
-                errors.append(f"{sym}: insufficient history ({len(daily)} rows)")
-                continue
-            items.append(
-                {
-                    "symbol": to_yahoo_symbol(sym).replace(".NS", ""),
-                    "daily_df": daily,
-                    "stock_is_fno_eligible": True,
-                }
+    warnings = list(errors)
+
+    for sym, daily in frames.items():
+        if daily is None or daily.empty or len(daily) < min_bars:
+            warnings.append(
+                f"{sym}: insufficient history ({0 if daily is None else len(daily)} rows)"
             )
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"{sym}: {exc}")
-    if errors:
+            continue
+        if fno_only_sell is None:
+            eligible = sym in fno
+        else:
+            eligible = bool(fno_only_sell)
+        items.append(
+            {
+                "symbol": sym,
+                "daily_df": daily,
+                "stock_is_fno_eligible": eligible,
+            }
+        )
+
+    if warnings:
         print("Data warnings:")
-        for e in errors:
+        for e in warnings[:30]:
             print(f"  - {e}")
-    return items, index_df
+        if len(warnings) > 30:
+            print(f"  ... and {len(warnings) - 30} more")
+
+    return items, index_df, warnings

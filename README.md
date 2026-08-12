@@ -31,6 +31,25 @@ streamlit run dashboard.py
 
 Opens at http://localhost:8501 — fetches Yahoo OHLCV, runs the scanner, and auto-refreshes on a timer you set in the sidebar.
 
+### Universe presets (one go)
+
+In the dashboard sidebar choose:
+
+| Preset | Size | Notes |
+|--------|------|------|
+| Sample (10) | 10 | Fast testing |
+| Nifty 50 | 50 | Large caps |
+| **NSE F&O (full)** | ~208 | **Recommended** — matches strategy; enables SELL |
+| Nifty 500 | 500 | Slower on free Yahoo |
+
+CLI:
+
+```bash
+python run_yahoo_scan.py --universe nse_fno --min-score 50
+python run_yahoo_scan.py --universe nifty50 --period 1y
+python run_yahoo_scan.py --universe nifty500 --min-score 60
+```
+
 ## Free data (Yahoo Finance — no broker / no payment)
 
 OHLCV is loaded with `yfinance`. NSE stocks use `.NS` (handled for you). Nifty is `^NSEI`.
