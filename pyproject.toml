@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
   "pandas>=2.0.0",
   "numpy>=1.24.0",
+  "yfinance>=0.2.40",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,7 @@ py-modules = [
   "risk",
   "evaluate",
   "scanner",
+  "data",
 ]
 
 [tool.pytest.ini_options]

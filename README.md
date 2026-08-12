@@ -8,18 +8,38 @@ All scanner modules live in the repo root.
 
 ```bash
 pip install -r requirements.txt
-pip install -e .
 ```
 
-## Quick start
+Dependencies: **pandas**, **numpy**, **yfinance** (free Yahoo Finance data). Optional: **pytest**.
+
+Use **Python 3.12** (recommended on Windows). Avoid Python 3.14 for now.
+
+## Free data (Yahoo Finance — no broker / no payment)
+
+OHLCV is loaded with `yfinance`. NSE stocks use `.NS` (handled for you). Nifty is `^NSEI`.
+
+```bash
+# activate your venv first on Windows:  .venv\Scripts\activate
+pip install -r requirements.txt
+python run_yahoo_scan.py
+```
+
+Scan specific symbols:
+
+```bash
+python run_yahoo_scan.py --symbols RELIANCE TCS INFY SBIN --min-score 0
+```
+
+### Quick start (your own DataFrames)
 
 ```python
 from config import ScannerConfig
 from evaluate import evaluate_stock
 from scanner import run_scanner, market_regime
+from data import fetch_ohlcv, fetch_index_ohlcv
 
-# daily_df / weekly_df: DataFrames with columns open, high, low, close, volume
-# (DatetimeIndex preferred; weekly can be omitted and will be resampled)
+stock_daily = fetch_ohlcv("RELIANCE", period="2y")
+nifty_daily = fetch_index_ohlcv(period="2y")
 
 signal = evaluate_stock(
     daily_df=stock_daily,
@@ -29,31 +49,23 @@ signal = evaluate_stock(
     direction=None,                 # None = score both BUY and SELL
     symbol="RELIANCE",
     stock_is_fno_eligible=True,
-    config=ScannerConfig(),         # tunable percentiles / weights
+    config=ScannerConfig(),
 )
-
-# Full universe
-report = run_scanner(
-    universe=[
-        {"symbol": "RELIANCE", "daily_df": reliance_daily, "stock_is_fno_eligible": True},
-        # ...
-    ],
-    index_daily_df=nifty_daily,
-)
-print(report["scanner_mode"])  # high_priority | normal
-print(report["results"][0])
+print(signal)
 ```
 
-Synthetic demo:
+Synthetic demo (no internet):
 
 ```bash
 python run_synthetic_scan.py
 ```
 
+Yahoo is free and fine for building/testing. It is **not** an official exchange feed — later you can swap `data.py` for a broker API without changing the scanner logic.
 ## Layout
 
 | File | Role |
 |------|------|
+| `data.py` | Free Yahoo Finance OHLCV loader (`yfinance`) |
 | `cpr.py` | CPR calc, narrow percentile classification, weekly resample |
 | `indicators.py` | EMA, RSI, ADX, volume ratio, relative strength |
 | `signals.py` | BUY/SELL conditions + composite score |
@@ -62,6 +74,8 @@ python run_synthetic_scan.py
 | `evaluate.py` | `evaluate_stock()` output schema |
 | `scanner.py` | Market regime + universe loop |
 | `config.py` | Tunable thresholds |
+| `run_yahoo_scan.py` | End-to-end scan using Yahoo data |
+| `run_synthetic_scan.py` | Offline demo with fake OHLCV |
 
 ## Logic summary
 
