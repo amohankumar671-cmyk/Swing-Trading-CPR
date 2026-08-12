@@ -30,6 +30,7 @@ py-modules = [
   "evaluate",
   "scanner",
   "data",
+  "dashboard_utils",
 ]
 
 [tool.pytest.ini_options]
